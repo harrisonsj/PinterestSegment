@@ -83,7 +83,13 @@ public struct PinterestSegmentStyle {
 
     public var valueChange: ((Int) -> Void)?
     private var titleLabels: [UILabel] = []
-    public private(set) var selectIndex = 0
+
+    private var progress: CGFloat = 0
+    var selectedIndex: Int {
+        return Int(round(progress))
+    }
+    @objc private weak var pageScrollView: UIScrollView?
+    private var offsetObserver: NSKeyValueObservation?
 
     private let scrollView: UIScrollView = {
         let view = UIScrollView()
@@ -145,7 +151,22 @@ public struct PinterestSegmentStyle {
     }
 
     public func setSelectIndex(index: Int, animated: Bool = true) {
-        setSelectIndex(index: index, animated: animated, sendAction: true)
+        //setSelectIndex(index: index, animated: animated, sendAction: true)
+        setProgress(progress: CGFloat(index), animated: animated, sendAction: true)
+        if let pageScrollView = self.pageScrollView {
+            var newOffset = pageScrollView.contentOffset
+            newOffset.x = pageScrollView.bounds.size.width * progress
+            pageScrollView.setContentOffset(newOffset, animated: animated)
+        }
+    }
+
+    public func setPageScrollView(_ scrollView: UIScrollView) {
+        pageScrollView = scrollView
+        offsetObserver = pageScrollView?.observe(\.contentOffset) { [weak self] scrollView, change in
+            guard scrollView.isDecelerating || scrollView.isDragging || scrollView.isTracking else { return }
+            let progress = scrollView.contentOffset.x / scrollView.bounds.size.width
+            self?.setProgress(progress: progress, animated: false, sendAction: true)
+        }
     }
 
     // Target action
@@ -164,12 +185,23 @@ public struct PinterestSegmentStyle {
         self._titleElements = titles
     }
 
-    private func setSelectIndex(index: Int, animated: Bool, sendAction: Bool, forceUpdate: Bool = false) {
+    private func setProgress(progress: CGFloat, animated: Bool, sendAction: Bool, forceUpdate: Bool = false) {
 
-        guard (index != selectIndex || forceUpdate), index >= 0, index < titleLabels.count else { return }
+        guard (progress != self.progress || forceUpdate), progress >= 0, progress <= CGFloat(titleLabels.count - 1) else { return }
 
-        let currentLabel = titleLabels[index]
-        let offSetX = min(max(0, currentLabel.center.x - bounds.width / 2),
+        let lowerIndex = Int(floor(progress))
+        let upperIndex = Int(ceil(progress))
+
+        let lowerLabel = titleLabels[lowerIndex]
+        let upperLabel = titleLabels[upperIndex]
+
+        let fractionalProgress = progress.truncatingRemainder(dividingBy: 1.0)
+
+        let newX = lowerLabel.frame.origin.x + (upperLabel.frame.origin.x - lowerLabel.frame.origin.x) * fractionalProgress
+        let newCenterX = lowerLabel.center.x + (upperLabel.center.x - lowerLabel.center.x) * fractionalProgress
+        let newWidth = lowerLabel.frame.size.width + (upperLabel.frame.size.width - lowerLabel.frame.size.width) * fractionalProgress
+
+        let offSetX = min(max(0, newCenterX - bounds.width / 2),
                           max(0, scrollView.contentSize.width - bounds.width))
         scrollView.setContentOffset(CGPoint(x: offSetX, y: 0), animated: true)
 
@@ -177,21 +209,21 @@ public struct PinterestSegmentStyle {
 
             UIView.animate(withDuration: 0.2, animations: {
                 var rect = self.indicator.frame
-                rect.origin.x = currentLabel.frame.origin.x
-                rect.size.width = currentLabel.frame.size.width
+                rect.origin.x = newX
+                rect.size.width = newWidth
                 self.setIndicatorFrame(rect)
             })
 
         } else {
             var rect = indicator.frame
-            rect.origin.x = currentLabel.frame.origin.x
-            rect.size.width = currentLabel.frame.size.width
+            rect.origin.x = newX
+            rect.size.width = newWidth
             setIndicatorFrame(rect)
         }
 
-        selectIndex = index
+        self.progress = progress
         if sendAction {
-            valueChange?(index)
+            valueChange?(selectedIndex)
             sendActions(for: .valueChanged)
         }
     }
@@ -323,7 +355,8 @@ public struct PinterestSegmentStyle {
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(PinterestSegment.handleTapGesture(_:)))
         addGestureRecognizer(tapGesture)
 
-        setSelectIndex(index: selectIndex, animated: animated, sendAction: sendAction, forceUpdate: true)
+        /*setSelectIndex(index: selectIndex, animated: animated, sendAction: sendAction, forceUpdate: true)*/
+        setProgress(progress: progress, animated: animated, sendAction: sendAction, forceUpdate: true)
 
     }
 }
