@@ -61,6 +61,14 @@ public struct PinterestSegmentStyle {
         }
     }
 
+    public var contentInset: UIEdgeInsets = .zero {
+        didSet{
+            guard contentInset != oldValue else { return }
+            scrollView.contentInset = contentInset
+            reloadLayout()
+        }
+    }
+
     private var _titleElements: [TitleElement] {
         didSet {
             reloadData(animated: false, sendAction: false)
@@ -201,9 +209,9 @@ public struct PinterestSegmentStyle {
         let newCenterX = lowerLabel.center.x + (upperLabel.center.x - lowerLabel.center.x) * fractionalProgress
         let newWidth = lowerLabel.frame.size.width + (upperLabel.frame.size.width - lowerLabel.frame.size.width) * fractionalProgress
 
-        let offSetX = min(max(0, newCenterX - bounds.width / 2),
-                          max(0, scrollView.contentSize.width - bounds.width))
-        scrollView.setContentOffset(CGPoint(x: offSetX, y: 0), animated: true)
+        let offSetX = min(max(-scrollView.contentInset.left, newCenterX - bounds.width / 2),
+                          max(0, scrollView.contentSize.width + scrollView.contentInset.right - bounds.width))
+        scrollView.setContentOffset(CGPoint(x: offSetX, y: 0), animated: animated)
 
         if animated {
 
@@ -293,7 +301,7 @@ public struct PinterestSegmentStyle {
 
             let titleW = toToSize(item.title) + titlePendingHorizontal * 2
 
-            titleX = (titleLabels.last?.frame.maxX ?? 0 ) + style.titleMargin
+            titleX = (titleLabels.last?.frame.maxX ?? 0 ) + (index > 0 ? style.titleMargin : 0)
             let rect = CGRect(x: titleX, y: titleY, width: titleW, height: titleH)
 
             let backLabel = UILabel(frame: CGRect.zero)
@@ -330,8 +338,8 @@ public struct PinterestSegmentStyle {
             selectContent.addSubview(frontLabel)
 
             if index == titles.count - 1 {
-                scrollView.contentSize.width = rect.maxX + style.titleMargin
-                selectContent.frame.size.width = rect.maxX + style.titleMargin
+                scrollView.contentSize.width = rect.maxX// + style.titleMargin
+                selectContent.frame.size.width = rect.maxX// + style.titleMargin
             }
         }
 
